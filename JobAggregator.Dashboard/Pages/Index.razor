@@ -1,0 +1,225 @@
+
+@page "/"
+@using JobAggregator.Core.Models
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<PageTitle>Job Postings</PageTitle>
+
+<h1>Job Postings</h1>
+
+<div class="filters">
+    <div class="form-group">
+        <label for="jobTypeFilter">Job Type:</label>
+        <select id="jobTypeFilter" class="form-control" @bind="selectedJobType" @bind:after="ApplyFilters">
+            <option value="">All</option>
+            <option value="Contract">Contract</option>
+            <option value="Permanent">Permanent</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="jobModeFilter">Job Mode:</label>
+        <select id="jobModeFilter" class="form-control" @bind="selectedJobMode" @bind:after="ApplyFilters">
+            <option value="">All</option>
+            <option value="Remote">Remote</option>
+            <option value="Hybrid">Hybrid</option>
+            <option value="Onsite">Onsite</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="minSalaryFilter">Min Salary:</label>
+        <input type="number" id="minSalaryFilter" class="form-control" @bind="minSalary" @bind:after="ApplyFilters" />
+    </div>
+    <div class="form-group">
+        <label for="maxSalaryFilter">Max Salary:</label>
+        <input type="number" id="maxSalaryFilter" class="form-control" @bind="maxSalary" @bind:after="ApplyFilters" />
+    </div>
+    <div class="form-group">
+        <label for="salaryUnitFilter">Salary Unit:</label>
+        <select id="salaryUnitFilter" class="form-control" @bind="selectedSalaryUnit" @bind:after="ApplyFilters">
+            <option value="">All</option>
+            <option value="Per Annum">Per Annum</option>
+            <option value="Per Day">Per Day</option>
+            <option value="Per Hour">Per Hour</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="ir35StatusFilter">IR35 Status:</label>
+        <select id="ir35StatusFilter" class="form-control" @bind="selectedIR35Status" @bind:after="ApplyFilters">
+            <option value="">All</option>
+            <option value="Inside IR35">Inside IR35</option>
+            <option value="Outside IR35">Outside IR35</option>
+            <option value="N/A">N/A</option>
+        </select>
+    </div>
+    <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="isFTEFilter" @bind="isFTEFilter" @bind:after="ApplyFilters" />
+        <label class="form-check-label" for="isFTEFilter">Full-Time Equivalent</label>
+    </div>
+    <div class="form-group">
+        <label for="dateAddedFilter">Date Added:</label>
+        <select id="dateAddedFilter" class="form-control" @bind="selectedDateAddedFilter" @bind:after="ApplyFilters">
+            <option value="">All Time</option>
+            <option value="hour">Last Hour</option>
+            <option value="day">Last 24 Hours</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
+            <option value="year">Last Year</option>
+        </select>
+    </div>
+    <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="onlyTodayFilter" @bind="onlyToday" @bind:after="ApplyFilters" />
+        <label class="form-check-label" for="onlyTodayFilter">Only Today's Postings (Published Date)</label>
+    </div>
+</div>
+
+@if (jobPostings == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Link</th>
+                <th>Published Date</th>
+                <th>Job Type</th>
+                <th>Job Mode</th>
+                <th>Salary</th>
+                <th>IR35 Status</th>
+                <th>FTE</th>
+                <th>Date Added</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var job in jobPostings)
+            {
+                <tr>
+                    <td><a href="@job.Link" target="_blank">@job.Title</a></td>
+                    <td>@job.Link</td>
+                    <td>@job.PublishedDate.ToShortDateString()</td>
+                    <td>@job.JobType</td>
+                    <td>@job.JobMode</td>
+                    <td>@(job.Salary.HasValue ? $"{job.Salary:N0} {job.SalaryUnit}" : "N/A")</td>
+                    <td>@job.IR35Status</td>
+                    <td>@(job.IsFTE ? "Yes" : "No")</td>
+                    <td>@job.DateAdded.ToShortDateString()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">Previous</button>
+            </li>
+            @for (int i = 1; i <= totalPages; i++)
+            {
+                <li class="page-item @(currentPage == i ? "active" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(i)">@i</button>
+                </li>
+            }
+            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">Next</button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@code {
+    private JobPosting[]? jobPostings;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    private int totalCount = 0;
+    private string? selectedJobType;
+    private string? selectedJobMode;
+    private bool onlyToday = false; // Default to today's postings
+    private decimal? minSalary;
+    private decimal? maxSalary;
+    private string? selectedSalaryUnit;
+    private string? selectedIR35Status;
+    private bool? isFTEFilter;
+    private string? selectedDateAddedFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobPostings();
+    }
+
+    private async Task LoadJobPostings()
+    {
+        var url = $"JobPostings?pageNumber={currentPage}&pageSize={pageSize}";
+
+        if (!string.IsNullOrEmpty(selectedJobType))
+        {
+            url += $"&jobType={selectedJobType}";
+        }
+
+        if (!string.IsNullOrEmpty(selectedJobMode))
+        {
+            url += $"&jobMode={selectedJobMode}";
+        }
+
+        if (onlyToday)
+        {
+            url += $"&onlyToday=true";
+        }
+
+        if (minSalary.HasValue)
+        {
+            url += $"&minSalary={minSalary.Value}";
+        }
+
+        if (maxSalary.HasValue)
+        {
+            url += $"&maxSalary={maxSalary.Value}";
+        }
+
+        if (!string.IsNullOrEmpty(selectedSalaryUnit))
+        {
+            url += $"&salaryUnit={selectedSalaryUnit}";
+        }
+
+        if (!string.IsNullOrEmpty(selectedIR35Status))
+        {
+            url += $"&ir35Status={selectedIR35Status}";
+        }
+
+        if (isFTEFilter.HasValue)
+        {
+            url += $"&isFTE={isFTEFilter.Value}";
+        }
+
+        if (!string.IsNullOrEmpty(selectedDateAddedFilter))
+        {
+            url += $"&dateAddedFilter={selectedDateAddedFilter}";
+        }
+
+        var response = await Http.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        totalCount = int.Parse(response.Headers.GetValues("X-Total-Count").FirstOrDefault() ?? "0");
+        totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+        jobPostings = await response.Content.ReadFromJsonAsync<JobPosting[]>();
+    }
+
+    private async Task ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            await LoadJobPostings();
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        currentPage = 1; // Reset to first page when filters change
+        await LoadJobPostings();
+    }
+}
