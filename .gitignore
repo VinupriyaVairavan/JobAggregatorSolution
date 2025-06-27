@@ -1,0 +1,23 @@
+# Ignore build output
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+
+# User-specific files
+.vscode/
+*.user
+*.suo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore Docker artifacts
+*.pid
+
+# Ignore environment files
+.env
