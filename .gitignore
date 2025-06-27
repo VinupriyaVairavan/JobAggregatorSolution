@@ -21,3 +21,6 @@ Thumbs.db
 
 # Ignore environment files
 .env
+
+# Ignore appsettings.json for Worker project
+Worker/appsettings.json
