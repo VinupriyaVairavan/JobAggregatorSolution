@@ -24,3 +24,4 @@ Thumbs.db
 
 # Ignore appsettings.json for Worker project
 JobAggregator.Worker/appsettings.json
+JobAggregator.Worker/appsettings.json
