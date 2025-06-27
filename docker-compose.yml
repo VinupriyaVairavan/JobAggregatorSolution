@@ -1,0 +1,43 @@
+
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: JobAggregator.Worker/Dockerfile
+    volumes:
+      - job_data:/app/data # Mount a named volume for persistent data
+    environment:
+      - ConnectionStrings__DefaultConnection=DataSource=/app/data/jobs.db
+      - SendGrid__ApiKey=${SENDGRID_API_KEY}
+      - SendGrid__FromEmail=${FROM_EMAIL}
+      - SendGrid__ToEmail=${TO_EMAIL}
+    # command: dotnet JobAggregator.Worker.dll # This will run the worker once
+    # If you want it to run periodically, you'd use a cron job on the host
+
+  api:
+    build:
+      context: .
+      dockerfile: JobAggregator.Api/Dockerfile
+    ports:
+      - "8000:8080"
+    volumes:
+      - job_data:/app/data # Mount the same named volume to share the database
+    environment:
+      - ConnectionStrings__DefaultConnection=DataSource=/app/data/jobs.db
+    depends_on:
+      - worker # Ensure worker runs first to create the database
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: JobAggregator.Dashboard/Dockerfile
+    ports:
+      - "8001:80"
+    depends_on:
+      - api # Ensure API is running before the dashboard
+
+volumes:
+  job_data:
+    driver: local
